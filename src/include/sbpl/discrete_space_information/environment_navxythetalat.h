@@ -349,6 +349,9 @@ public:
                                double nominalvel_mpersecs, double timetoturn45degsinplace_secs,
                                unsigned char obsthresh, const char* sMotPrimFile, EnvNAVXYTHETALAT_InitParms params);
 
+
+    virtual void InitializeEnv(const std::vector<sbpl_2Dpt_t>& perimeterptsV, const char* sMotPrimFile);
+
     /**
      * \brief update the traversability of a cell<x,y>
      */
@@ -410,6 +413,7 @@ public:
     virtual const EnvNAVXYTHETALATConfig_t* GetEnvNavConfig();
 
     virtual ~EnvironmentNAVXYTHETALATTICE();
+    virtual void ClearStates() = 0;
 
     /**
      * \brief prints time statistics
@@ -479,19 +483,18 @@ protected:
 
     virtual void ReadConfiguration(FILE* fCfg);
 
-    virtual void InitializeEnvConfig(std::vector<SBPL_xytheta_mprimitive>* motionprimitiveV);
+    virtual void InitializeEnvConfig();
 
     virtual bool CheckQuant(FILE* fOut);
-
+public:
     virtual void SetConfiguration(int width, int height,
                                   /** if mapdata is NULL the grid is initialized to all freespace */
                                   const unsigned char* mapdata,
-                                  int startx, int starty, int starttheta,
-                                  int goalx, int goaly, int goaltheta,
-                                  double cellsize_m, double nominalvel_mpersecs, double timetoturn45degsinplace_secs,
-                                  const std::vector<sbpl_2Dpt_t> & robot_perimeterV);
-
-    virtual bool InitGeneral(std::vector<SBPL_xytheta_mprimitive>* motionprimitiveV);
+                                  double startx, double starty, double starttheta,
+                                  double goalx, double goaly, double goaltheta,
+                                  unsigned char obsthresh);
+protected:
+    virtual bool InitGeneral();
     virtual void PrecomputeActionswithBaseMotionPrimitive(std::vector<SBPL_xytheta_mprimitive>* motionprimitiveV);
     virtual void PrecomputeActionswithCompleteMotionPrimitive(std::vector<SBPL_xytheta_mprimitive>* motionprimitiveV);
     virtual void DeprecatedPrecomputeActions();
@@ -681,6 +684,8 @@ protected:
     EnvNAVXYTHETALATHashEntry_t* (EnvironmentNAVXYTHETALAT::*CreateNewHashEntry)(int X, int Y, int Theta);
 
     virtual void InitializeEnvironment();
+
+    virtual void ClearStates();
 
     virtual void PrintHashTableHist(FILE* fOut);
 };

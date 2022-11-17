@@ -521,6 +521,8 @@ int planxythetalat(PlannerType plannerType, char* envCfgFilename, char* motPrimF
         printf("Invalid planner type\n");
         break;
     }
+    
+printf("---- start: %d  goal: %d\n", MDPCfg.startstateid, MDPCfg.goalstateid);
 
     // set planner properties
     if (planner->set_start(MDPCfg.startstateid) == 0) {
@@ -555,7 +557,10 @@ int planxythetalat(PlannerType plannerType, char* envCfgFilename, char* motPrimF
         int y;
         int theta;
         environment_navxythetalat.GetCoordFromState(solution_stateIDs_V[i], x, y, theta);
-        fprintf(fSol, "%d %d %d\t\t%.3f %.3f %.3f\n", x, y, theta, DISCXY2CONT(x, 0.1), DISCXY2CONT(y, 0.1), DiscTheta2Cont(theta, 16));
+        fprintf(fSol, "%d: %d %d %d\t\t%.3f %.3f %.3f\n", solution_stateIDs_V[i], 
+          x, y, theta, 
+          DISCXY2CONT(x, 0.1), DISCXY2CONT(y, 0.1), DiscTheta2Cont(theta, 16)
+        );
     }
 
     // write the continuous solution to file

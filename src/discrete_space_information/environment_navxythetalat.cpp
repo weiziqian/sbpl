@@ -127,18 +127,31 @@ static unsigned int inthash(unsigned int key)
 
 void EnvironmentNAVXYTHETALATTICE::SetConfiguration(
     int width, int height, const unsigned char* mapdata,
-    int startx, int starty, int starttheta,
-    int goalx, int goaly, int goaltheta,
-    double cellsize_m,
-    double nominalvel_mpersecs,
-    double timetoturn45degsinplace_secs,
-    const std::vector<sbpl_2Dpt_t>& robot_perimeterV)
+    double startx, double starty, double starttheta,
+    double goalx, double goaly, double goaltheta,
+    unsigned char obsthresh)
 {
+    ClearStates();
+  // unallocate the 2D environment
+    if (EnvNAVXYTHETALATCfg.Grid2D != NULL) {
+        for (int x = 0; x < EnvNAVXYTHETALATCfg.EnvWidth_c; x++) {
+            delete[] EnvNAVXYTHETALATCfg.Grid2D[x];
+        }
+        delete[] EnvNAVXYTHETALATCfg.Grid2D;
+        EnvNAVXYTHETALATCfg.Grid2D = NULL;
+    }
+
+
     EnvNAVXYTHETALATCfg.EnvWidth_c = width;
     EnvNAVXYTHETALATCfg.EnvHeight_c = height;
-    EnvNAVXYTHETALATCfg.StartX_c = startx;
-    EnvNAVXYTHETALATCfg.StartY_c = starty;
-    EnvNAVXYTHETALATCfg.StartTheta = starttheta;
+
+    EnvNAVXYTHETALATCfg.StartTheta_rad = starttheta;
+    EnvNAVXYTHETALATCfg.EndTheta_rad = goaltheta;
+
+    EnvNAVXYTHETALATCfg.StartX_c = CONTXY2DISC(startx, EnvNAVXYTHETALATCfg.cellsize_m);
+    EnvNAVXYTHETALATCfg.StartY_c = CONTXY2DISC(starty, EnvNAVXYTHETALATCfg.cellsize_m);
+    EnvNAVXYTHETALATCfg.StartTheta = ContTheta2DiscNew(EnvNAVXYTHETALATCfg.StartTheta_rad);
+
 
     if (EnvNAVXYTHETALATCfg.StartX_c < 0 ||
         EnvNAVXYTHETALATCfg.StartX_c >= EnvNAVXYTHETALATCfg.EnvWidth_c)
@@ -156,9 +169,9 @@ void EnvironmentNAVXYTHETALATTICE::SetConfiguration(
         throw SBPL_Exception("ERROR: illegal start coordinates for theta");
     }
 
-    EnvNAVXYTHETALATCfg.EndX_c = goalx;
-    EnvNAVXYTHETALATCfg.EndY_c = goaly;
-    EnvNAVXYTHETALATCfg.EndTheta = goaltheta;
+    EnvNAVXYTHETALATCfg.EndX_c = CONTXY2DISC(goalx, EnvNAVXYTHETALATCfg.cellsize_m);
+    EnvNAVXYTHETALATCfg.EndY_c = CONTXY2DISC(goaly, EnvNAVXYTHETALATCfg.cellsize_m);
+    EnvNAVXYTHETALATCfg.EndTheta = ContTheta2DiscNew(EnvNAVXYTHETALATCfg.EndTheta_rad);
 
     if (EnvNAVXYTHETALATCfg.EndX_c < 0 ||
         EnvNAVXYTHETALATCfg.EndX_c >= EnvNAVXYTHETALATCfg.EnvWidth_c)
@@ -176,20 +189,15 @@ void EnvironmentNAVXYTHETALATTICE::SetConfiguration(
         throw SBPL_Exception("ERROR: illegal goal coordinates for theta");
     }
 
-    EnvNAVXYTHETALATCfg.FootprintPolygon = robot_perimeterV;
+    EnvNAVXYTHETALATCfg.obsthresh = obsthresh;
 
-    EnvNAVXYTHETALATCfg.nominalvel_mpersecs = nominalvel_mpersecs;
-    EnvNAVXYTHETALATCfg.cellsize_m = cellsize_m;
-    EnvNAVXYTHETALATCfg.timetoturn45degsinplace_secs = timetoturn45degsinplace_secs;
+    // AYLWIN: use resolution defined in prim file
+    //EnvNAVXYTHETALATCfg.cellsize_m = cellsize_m;
 
-    // unallocate the 2D environment
-    if (EnvNAVXYTHETALATCfg.Grid2D != NULL) {
-        for (int x = 0; x < EnvNAVXYTHETALATCfg.EnvWidth_c; x++) {
-            delete[] EnvNAVXYTHETALATCfg.Grid2D[x];
-        }
-        delete[] EnvNAVXYTHETALATCfg.Grid2D;
-        EnvNAVXYTHETALATCfg.Grid2D = NULL;
-    }
+    // AYLWIN:  these value no longer used. given default value
+    EnvNAVXYTHETALATCfg.timetoturn45degsinplace_secs = 1.;
+    EnvNAVXYTHETALATCfg.nominalvel_mpersecs = 1.;
+
 
     // allocate the 2D environment
     EnvNAVXYTHETALATCfg.Grid2D = new unsigned char*[EnvNAVXYTHETALATCfg.EnvWidth_c];
@@ -212,6 +220,11 @@ void EnvironmentNAVXYTHETALATTICE::SetConfiguration(
             }
         }
     }
+
+    bNeedtoRecomputeStartHeuristics = true;
+    bNeedtoRecomputeGoalHeuristics = true;
+
+    InitGeneral();
 }
 
 void EnvironmentNAVXYTHETALATTICE::ReadConfiguration(FILE* fCfg)
@@ -767,9 +780,9 @@ bool EnvironmentNAVXYTHETALATTICE::ReadMotionPrimitives(FILE* fMotPrims)
         return false;
     }
     if (fabs(fTemp - EnvNAVXYTHETALATCfg.cellsize_m) > ERR_EPS) {
-        SBPL_ERROR("ERROR: invalid resolution %f (instead of %f) in the dynamics file\n", fTemp, EnvNAVXYTHETALATCfg.cellsize_m);
+        EnvNAVXYTHETALATCfg.cellsize_m = fTemp;
+        SBPL_ERROR("INFO: reset internal sbpl map resolution to %f as defined in prim file.\n", EnvNAVXYTHETALATCfg.cellsize_m);
         fflush(stdout);
-        return false;
     }
     SBPL_INFO("resolution_m: %f\n", fTemp);
 
@@ -1207,6 +1220,7 @@ void EnvironmentNAVXYTHETALATTICE::PrecomputeActionswithCompleteMotionPrimitive(
                 previnterm3Dcell = intermediate2dCell;
             }
 
+            /* AYLWIN: DELETE these as not needed for computing cost
             // compute linear and angular time
             double linear_distance = 0;
             for (unsigned int i = 1; i < EnvNAVXYTHETALATCfg.ActionsV[tind][aind].intermptV.size(); i++) {
@@ -1231,6 +1245,10 @@ void EnvironmentNAVXYTHETALATTICE::PrecomputeActionswithCompleteMotionPrimitive(
                     (int)(ceil(NAVXYTHETALAT_COSTMULT_MTOMM * std::max(linear_time, angular_time)));
             // use any additional cost multiplier
             EnvNAVXYTHETALATCfg.ActionsV[tind][aind].cost *= motionprimitiveV->at(mind).additionalactioncostmult;
+            */
+
+            //AYLWIN's version: put absolute cost directly in the prim file. not need to compute here
+            EnvNAVXYTHETALATCfg.ActionsV[tind][aind].cost = motionprimitiveV->at(mind).additionalactioncostmult;
 
             // now compute the intersecting cells for this motion (including ignoring the source footprint)
             get_2d_motion_cells(
@@ -1434,7 +1452,7 @@ void EnvironmentNAVXYTHETALATTICE::DeprecatedPrecomputeActions()
     SBPL_PRINTF("done pre-computing action data\n");
 }
 
-void EnvironmentNAVXYTHETALATTICE::InitializeEnvConfig(std::vector<SBPL_xytheta_mprimitive>* motionprimitiveV)
+void EnvironmentNAVXYTHETALATTICE::InitializeEnvConfig()
 {
     // additional to configuration file initialization of EnvNAVXYTHETALATCfg if
     // necessary
@@ -1482,13 +1500,6 @@ void EnvironmentNAVXYTHETALATTICE::InitializeEnvConfig(std::vector<SBPL_xytheta_
                      DISCXY2CONT(footprint.at(i).y, EnvNAVXYTHETALATCfg.cellsize_m));
     }
 #endif
-
-    if (motionprimitiveV == NULL) {
-        DeprecatedPrecomputeActions();
-    }
-    else {
-        PrecomputeActionswithCompleteMotionPrimitive(motionprimitiveV);
-    }
 }
 
 bool EnvironmentNAVXYTHETALATTICE::IsValidCell(int X, int Y)
@@ -1615,7 +1626,12 @@ int EnvironmentNAVXYTHETALATTICE::GetActionCost(
             EnvNAVXYTHETALATCfg.Grid2D[SourceX + action->dX][SourceY + action->dY]);
 
     // use cell cost as multiplicative factor
-    return action->cost * (currentmaxcost + 1);
+    //printf(";%dx%d,", action->cost, currentmaxcost);
+
+    //original:
+    //return action->cost * (currentmaxcost + 1);
+
+    return action->cost + (currentmaxcost * 100000);
 }
 
 double EnvironmentNAVXYTHETALATTICE::EuclideanDistance_m(int X1, int Y1, int X2, int Y2)
@@ -1878,11 +1894,16 @@ bool EnvironmentNAVXYTHETALATTICE::InitializeEnv(
             throw new SBPL_Exception("ERROR: illegal goal coordinates for theta");
         }
 
-        InitGeneral(&EnvNAVXYTHETALATCfg.mprimV);
+        // AYLWIN:
+        //  (but this functions is not used <-- I forgot what I meant by this)
+        EnvNAVXYTHETALATCfg.FootprintPolygon = perimeterptsV;
+        PrecomputeActionswithCompleteMotionPrimitive(&EnvNAVXYTHETALATCfg.mprimV);
+
+        InitGeneral();
         fclose(fMotPrim);
     }
     else {
-        InitGeneral( NULL);
+        InitGeneral();
     }
 
     SBPL_PRINTF("size of env: %d by %d\n", EnvNAVXYTHETALATCfg.EnvWidth_c, EnvNAVXYTHETALATCfg.EnvHeight_c);
@@ -1900,7 +1921,7 @@ bool EnvironmentNAVXYTHETALATTICE::InitializeEnv(const char* sEnvFile)
     ReadConfiguration(fCfg);
     fclose(fCfg);
 
-    InitGeneral( NULL);
+    InitGeneral();
 
     return true;
 }
@@ -1978,7 +1999,7 @@ bool EnvironmentNAVXYTHETALATTICE::InitializeEnv(
         }
         fclose(fMotPrim);
     }
-
+    /* AYLWIN: Moved to SetConfiguration
     EnvNAVXYTHETALATCfg.StartTheta = ContTheta2DiscNew(EnvNAVXYTHETALATCfg.StartTheta_rad);
     if (EnvNAVXYTHETALATCfg.StartTheta < 0 ||
         EnvNAVXYTHETALATCfg.StartTheta >= EnvNAVXYTHETALATCfg.NumThetaDirs)
@@ -1991,30 +2012,57 @@ bool EnvironmentNAVXYTHETALATTICE::InitializeEnv(
     {
         throw new SBPL_Exception("ERROR: illegal goal coordiantes for theta");
     }
+    */
+
+    // AYLWIN:
+    EnvNAVXYTHETALATCfg.FootprintPolygon = perimeterptsV;
+    PrecomputeActionswithCompleteMotionPrimitive(&EnvNAVXYTHETALATCfg.mprimV);
 
     SetConfiguration(
             width, height, mapdata,
-            CONTXY2DISC(startx, cellsize_m), CONTXY2DISC(starty, cellsize_m), EnvNAVXYTHETALATCfg.StartTheta,
-            CONTXY2DISC(goalx, cellsize_m), CONTXY2DISC(goaly, cellsize_m), EnvNAVXYTHETALATCfg.EndTheta,
-            cellsize_m,
-            nominalvel_mpersecs, timetoturn45degsinplace_secs,
-            perimeterptsV);
+            startx, starty, starttheta,
+            goalx, goaly, goaltheta,
+            obsthresh);
 
-    if (EnvNAVXYTHETALATCfg.mprimV.size() != 0) {
-        InitGeneral(&EnvNAVXYTHETALATCfg.mprimV);
-    }
-    else {
-        InitGeneral( NULL);
-    }
+
+    // AYLWIN: moved initgeneral into setconfiguration
+    // InitGeneral();
 
     return true;
 }
 
-bool EnvironmentNAVXYTHETALATTICE::InitGeneral(
-    std::vector<SBPL_xytheta_mprimitive>* motionprimitiveV)
+
+// AYLWIN's version
+void EnvironmentNAVXYTHETALATTICE::InitializeEnv(const std::vector<sbpl_2Dpt_t>& perimeterptsV, const char* sMotPrimFile)
+{
+    if (sMotPrimFile != NULL) {
+        FILE* fMotPrim = fopen(sMotPrimFile, "r");
+        if (fMotPrim == NULL) {
+            std::stringstream ss;
+            ss << "ERROR: unable to open " << sMotPrimFile;
+            throw SBPL_Exception(ss.str());
+        }
+
+        if (ReadMotionPrimitives(fMotPrim) == false) {
+            throw SBPL_Exception("ERROR: failed to read in motion primitive file");
+        }
+        fclose(fMotPrim);
+    }
+    EnvNAVXYTHETALATCfg.FootprintPolygon = perimeterptsV;
+    PrecomputeActionswithCompleteMotionPrimitive(&EnvNAVXYTHETALATCfg.mprimV);
+    InitializeEnvConfig();
+}
+
+
+
+
+
+bool EnvironmentNAVXYTHETALATTICE::InitGeneral()
 {
     // Initialize other parameters of the environment
-    InitializeEnvConfig(motionprimitiveV);
+
+    // AYLWIN: moved to InitializeEnv
+    //InitializeEnvConfig();
 
     // initialize Environment
     InitializeEnvironment();
@@ -2313,16 +2361,20 @@ int EnvironmentNAVXYTHETALATTICE::GetEnvParameter(const char* parameter)
     }
 }
 
-EnvironmentNAVXYTHETALAT::~EnvironmentNAVXYTHETALAT()
+// AYLWIN: clear all map-related things
+void EnvironmentNAVXYTHETALAT::ClearStates()
 {
-    SBPL_PRINTF("destroying XYTHETALAT\n");
+    SBPL_PRINTF("clearing XYTHETALAT\n");
 
     // delete the states themselves first
     for (int i = 0; i < (int)StateID2CoordTable.size(); i++) {
         delete StateID2CoordTable.at(i);
-        StateID2CoordTable.at(i) = NULL;
     }
     StateID2CoordTable.clear();
+    for (int i = 0; i < (int)StateID2IndexMapping.size(); i++) {
+        delete[] StateID2IndexMapping.at(i);
+    }
+    StateID2IndexMapping.clear();
 
     // delete hashtable
     if (Coord2StateIDHashTable != NULL) {
@@ -2333,6 +2385,30 @@ EnvironmentNAVXYTHETALAT::~EnvironmentNAVXYTHETALAT()
         delete[] Coord2StateIDHashTable_lookup;
         Coord2StateIDHashTable_lookup = NULL;
     }
+
+    if (grid2Dsearchfromstart != NULL) {
+        delete grid2Dsearchfromstart;
+    }
+    grid2Dsearchfromstart = NULL;
+
+    if (grid2Dsearchfromgoal != NULL) {
+        delete grid2Dsearchfromgoal;
+    }
+    grid2Dsearchfromgoal = NULL;
+
+    if (EnvNAVXYTHETALATCfg.Grid2D != NULL) {
+        for (int x = 0; x < EnvNAVXYTHETALATCfg.EnvWidth_c; x++) {
+            delete[] EnvNAVXYTHETALATCfg.Grid2D[x];
+        }
+        delete[] EnvNAVXYTHETALATCfg.Grid2D;
+        EnvNAVXYTHETALATCfg.Grid2D = NULL;
+    }
+}
+
+EnvironmentNAVXYTHETALAT::~EnvironmentNAVXYTHETALAT()
+{
+    SBPL_PRINTF("destroying XYTHETALAT\n");
+    ClearStates();
 }
 
 void EnvironmentNAVXYTHETALAT::GetCoordFromState(
@@ -3040,10 +3116,12 @@ void EnvironmentNAVXYTHETALAT::InitializeEnvironment()
         // not using hash
         Coord2StateIDHashTable_lookup = NULL;
     }
+    SBPL_PRINTF("environment stores states finished\n");
 
     // initialize the map from StateID to Coord
     StateID2CoordTable.clear();
 
+    SBPL_PRINTF("create start state\n");
     // create start state
     if (NULL == (HashEntry = (this->*GetHashEntry)(
             EnvNAVXYTHETALATCfg.StartX_c,
@@ -3058,6 +3136,7 @@ void EnvironmentNAVXYTHETALAT::InitializeEnvironment()
     }
     EnvNAVXYTHETALAT.startstateid = HashEntry->stateID;
 
+    SBPL_PRINTF("create goal state\n");
     // create goal state
     if ((HashEntry = (this->*GetHashEntry)(
             EnvNAVXYTHETALATCfg.EndX_c,
@@ -3074,6 +3153,7 @@ void EnvironmentNAVXYTHETALAT::InitializeEnvironment()
 
     // initialized
     EnvNAVXYTHETALAT.bInitialized = true;
+    SBPL_PRINTF("env initialized\n");
 }
 
 // examples of hash functions: map state coordinates onto a hash value

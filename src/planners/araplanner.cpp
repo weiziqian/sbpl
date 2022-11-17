@@ -34,6 +34,7 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <climits>
 
 #include <sbpl/discrete_space_information/environment.h>
 #include <sbpl/utils/heap.h>
@@ -351,6 +352,9 @@ int ARAPlanner::ImprovePath(ARASearchStateSpace_t* pSearchStateSpace, double Max
     CKey goalkey;
 
     expands = 0;
+    alternative_goal_id_ = 0;
+    int min_h = INT_MAX;
+    int min_g_at_min_h = INT_MAX;
 
     if (pSearchStateSpace->searchgoalstate == NULL) {
         throw SBPL_Exception("ERROR searching: no goal state is set");
@@ -376,6 +380,17 @@ int ARAPlanner::ImprovePath(ARASearchStateSpace_t* pSearchStateSpace, double Max
     {
         //get the state
         state = (ARAState*)pSearchStateSpace->heap->deleteminheap();
+
+        // AYLWIN:
+        if (state->h > 0 && min_h >= state->h) {
+            if (min_h == state->h && min_g_at_min_h < state->g) {
+              //do nothing
+            } else {
+                min_g_at_min_h = state->g;
+                min_h = state->h;
+                alternative_goal_id_ = state->MDPstate->StateID;
+            }
+        }
 
 #if DEBUG
         SBPL_FPRINTF(fDeb, "expanding state(%d): h=%d g=%u key=%u v=%u iterc=%d callnuma=%d expands=%d (g(goal)=%u)\n",
@@ -710,7 +725,7 @@ int ARAPlanner::ReconstructPath(ARASearchStateSpace_t* pSearchStateSpace)
             predstateinfo->bestnextstate = MDPstate;
 
             //check the decrease of g-values along the path
-            if (predstateinfo->v >= stateinfo->g) {
+            if (false && predstateinfo->v >= stateinfo->g) {
                 SBPL_ERROR("ERROR in ReconstructPath: g-values are non-decreasing\n");
                 PrintSearchState(predstateinfo, fDeb);
                 throw SBPL_Exception("ERROR in ReconstructPath: g-values are non-decreasing");
@@ -1065,7 +1080,6 @@ int ARAPlanner::replan(double allocated_time_secs, vector<int>* solution_stateID
 //returns 1 if found a solution, and 0 otherwise
 int ARAPlanner::replan(double allocated_time_secs, vector<int>* solution_stateIDs_V, int* psolcost)
 {
-    vector<int> pathIds;
     bool bFound = false;
     int PathCost;
     bool bFirstSolution = this->bsearchuntilfirstsolution;
@@ -1075,14 +1089,13 @@ int ARAPlanner::replan(double allocated_time_secs, vector<int>* solution_stateID
     SBPL_PRINTF("planner: replan called (bFirstSol=%d, bOptSol=%d)\n", bFirstSolution, bOptimalSolution);
 
     //plan
-    bFound = Search(pSearchStateSpace_, pathIds, PathCost, bFirstSolution, bOptimalSolution, allocated_time_secs);
+    bFound = Search(pSearchStateSpace_, *solution_stateIDs_V, PathCost, bFirstSolution, bOptimalSolution, allocated_time_secs);
     if (!bFound)
     {
         SBPL_PRINTF("failed to find a solution\n");
     }
 
     //copy the solution
-    *solution_stateIDs_V = pathIds;
     *psolcost = PathCost;
 
     return (int)bFound;

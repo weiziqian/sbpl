@@ -9,7 +9,12 @@ set(SBPL_VERSION ${SBPL_MAJOR_VERSION}.${SBPL_MINOR_VERSION}.${SBPL_PATCH_VERSIO
 
 set(CMAKE_BUILD_TYPE Release)
 
-include_directories(src/include)
+find_package(OpenCV REQUIRED)
+
+include_directories(
+  src/include
+  ${OpenCV_INCLUDE_DIRS}
+)
 
 add_library(sbpl SHARED
   src/discrete_space_information/environment_nav2D.cpp
@@ -75,6 +80,9 @@ install(TARGETS sbpl
 
 add_executable(test_sbpl src/test/main.cpp)
 target_link_libraries(test_sbpl sbpl)
+
+add_executable(minimal_test src/test/minimal_test.cpp)
+target_link_libraries(minimal_test sbpl ${OpenCV_LIBS})
 
 add_executable(test_adjacency_list src/test/test_adjacency_list.cpp)
 target_link_libraries(test_adjacency_list sbpl)

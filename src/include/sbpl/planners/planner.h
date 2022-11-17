@@ -1,10 +1,10 @@
 /*
  * Copyright (c) 2008, Maxim Likhachev
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
@@ -13,7 +13,7 @@
  *     * Neither the name of the Carnegie Mellon University nor the names of its
  *       contributors may be used to endorse or promote products derived from
  *       this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -100,7 +100,7 @@ public:
      * \brief the final epsilon. (for anytime planners) the default value is 1.0 (optimal solution)
      */
     double final_eps;
-    
+
     /**
      * \brief the amount epsilon decreases by between searches. (for anytime planners) By default this is 0.2
      */
@@ -127,7 +127,7 @@ public:
      *        maxTime).  This second timer is useful because you often want a
      *        solution in a short amount of time (repairTime) where you are willing
      *        to let the planner improve the solution, but you are willing to wait a
-     *        longer amount of time (maxTime) to get the first solution. 
+     *        longer amount of time (maxTime) to get the first solution.
      */
     double repair_time;
 };
@@ -342,6 +342,9 @@ public:
     virtual void set_initialsolution_eps(double initialsolution_eps) { }
 
     virtual ~SBPLPlanner() { }
+
+    // AYLWIN:
+    virtual int get_alternative_goal_id() {return 0;};
 
 protected:
     DiscreteSpaceInformation *environment_;
